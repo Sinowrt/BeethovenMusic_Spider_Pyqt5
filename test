@@ -1,0 +1,30 @@
+import  bs4
+import requests
+import urllib
+import bs4
+
+# response = requests.get('http://47.92.145.115/artist/004%20Wilhelm%20Backhaus/art.html')
+# response.encoding = 'utf-8'
+# soup = bs4.BeautifulSoup(response.text, "html.parser")
+# print(soup.h1)
+
+
+response = requests.get('http://47.92.145.115/artist/004%20Wilhelm%20Backhaus/art.html')
+print(response.encoding)
+soup = bs4.BeautifulSoup(response.text, "html.parser")
+print(soup.original_encoding)
+
+
+
+# page = requests.get('http://47.92.145.115/artist/004%20Wilhelm%20Backhaus/art.html');
+# soup = bs4.BeautifulSoup(page.text,"html.parser",from_encoding="gb18030")
+# print(soup.originalEncoding)
+# print(soup.prettify())
+
+# import requests
+# url='http://47.92.145.115/artist/004%20Wilhelm%20Backhaus/art.html'
+# req =requests.get(url)
+# req.encoding='utf-8' #显式地指定网页编码，一般情况可以不用
+# # print(req.text)
+# soup = bs4.BeautifulSoup(req.text, "html.parser")
+# print(soup.h1)
