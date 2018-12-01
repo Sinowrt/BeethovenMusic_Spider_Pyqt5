@@ -53,24 +53,33 @@ class Spider(QObject):
             # data.content.decode('utf-8')
 
             soup = BeautifulSoup(data.text, 'lxml')
-            res=soup.find_all("p", class_="lead")
-            count=count+1
+
+            activetab = soup.find(class_= "tab-pane active")
+            tab=soup.find(class_= "tab-pane ")
+
+            if tab != None:
+                res = tab.find_all("p", class_="lead")
+            elif activetab != None:
+                res=activetab.find_all("p", class_="lead")
+            else:
+                res=[]
+
+            count = count + 1
             artistName = artistUrl.replace("artist/", "").replace("/art.html", "")
             print(artistName)
 
-            ArtistItemDict['artistName']=artistName
+            ArtistItemDict['artistName'] = artistName
 
-            Series_List=[]
-            self.updateProcessor_signal.emit(count/total * 100)
-
+            Series_List = []
+            self.updateProcessor_signal.emit(count / total * 100)
 
             for i in res:
                 SeriesItemDict = {'series': i.get_text().replace(":", "-").rstrip()}
                 songList = []
                 print(i.get_text())
-                p=i.find_next_sibling()
+                p = i.find_next_sibling()
 
-                if not(len(p)>1):
+                if not (len(p) > 1):
                     p = i.find_next_sibling().find_next_sibling()
 
                 while len(p) > 1:
@@ -87,14 +96,12 @@ class Spider(QObject):
 
                     songList.append(SongDict)
                 print("===============================")
-                SeriesItemDict['songList']=songList
+                SeriesItemDict['songList'] = songList
                 Series_List.append(SeriesItemDict)
             ArtistItemDict['seriesList']=Series_List
             Artists_list.append(ArtistItemDict)
             print(len(Artists_list))
-            # k=k+1
-            # if k==4:
-            #     return Artists_list
+            # 0
         print(Artists_list)
         # list=Artists_list
         return Artists_list
@@ -159,8 +166,10 @@ class Spider(QObject):
             print("folder exit!")
         return
 
-    # get_all_artists()
-    # get_all_artists_song()
+# spider=Spider()
+#
+#
+# spider.get_all_artists_song()
 
 
 

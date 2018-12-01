@@ -6,17 +6,37 @@ import urllib
 import traceback
 
 class Getfile(object):  #下载文件
-    def __init__(self,url):
+    def __init__(self,url,path):
         self.url=url
         self.flag=True  #当self.flag=False，暂停或取消下载，也就是结束下载线程
         self.header_flag=False #当为True时，设置header，断点续传
+        self.downfullPath = path
+        self.headReaponseCode=int()
+
         try:
             print("headerUrl================"+url)
             self.re=requests.head(url,allow_redirects=True,timeout=20)  #运行head方法时重定向
+            self.headReaponseCode=self.re.status_code
+            if self.headReaponseCode == 404:
+                self.clear0MFile()
+                self.flag=False
+
         except:
             traceback.print_exc()
 
-        self.downfullPath=str()
+
+    def clear0MFile(self):
+        try:
+            if os.path.isfile(self.downfullPath):
+                os.remove(self.downfullPath)
+                if not os.listdir(os.path.dirname(self.downfullPath)):
+                    os.rmdir(os.path.dirname(self.downfullPath))
+                    print('移除空目录: ' + os.path.dirname(self.downfullPath))
+
+
+        except:
+            traceback.print_exc()
+
     def getsize(self):
         try:
             self.file_total=int(self.re.headers['Content-Length']) #获取下载文件大小    
@@ -37,26 +57,29 @@ class Getfile(object):  #下载文件
         if filename=='':
             filename='index.html'
         return filename
-    def downfile(self,filename):  #下载文件
+
+    def downfile(self):  #下载文件
         self.headers={}
         self.mode='wb'
-        self.isValidPath(filename)
-        self.downfullPath=filename
+        self.isValidPath(self.downfullPath)
+
 
         print("i am downfile,i am downloading")
-        if os.path.exists(filename) :
-            self.headers={'Range': 'bytes=%d-' %os.path.getsize(filename) }
+        if os.path.exists(self.downfullPath) :
+            self.headers={'Range': 'bytes=%d-' %os.path.getsize(self.downfullPath) }
             self.mode='ab'
         self.r = requests.get(self.url,stream=True,headers=self.headers)
 
-        print(self.mode)
-        with open(filename, self.mode) as code:
-            for chunk in self.r.iter_content(chunk_size=1024): #边下载边存硬盘
-                if chunk and self.flag:
-                    code.write(chunk)
-                else:
-                    break
-        time.sleep(1)
+        # print(self.mode)
+        try:
+            with open(self.downfullPath, self.mode) as code:
+                for chunk in self.r.iter_content(chunk_size=1024): #边下载边存硬盘
+                    if chunk and self.flag:
+                        code.write(chunk)
+                    else:
+                        break
+        except:
+            traceback.print_exc()
 
 
     def isValidPath(self,fullpath):

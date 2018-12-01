@@ -18,9 +18,10 @@ import threading
 import threadpool
 import time
 import os
+import traceback
 
 class Ui_MainWindow(QObject):
-    insert_signal = pyqtSignal(str)
+    insert_signal = pyqtSignal(str,int)
     updatespeed_signal=pyqtSignal(str,int)
     updateprogress_signal=pyqtSignal(int,int)
     updatatotalProgress_signal=pyqtSignal(float)
@@ -36,7 +37,7 @@ class Ui_MainWindow(QObject):
         MainWindow.setFixedSize(1000, 567)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
-        QMessageBox.about(self.centralwidget, "Info","版本：2018.11.30\n新特性：\n1.解决网络异常闪退问题\n2.增强版断点续存\nEnjoy it！")
+        QMessageBox.about(self.centralwidget, "Info","版本：2018.12.1\n\n旧版注意：\n第一版爬虫未留意到立体声版本，造成数据冗余，若下载了第三第四演奏家曲目须删除重新下载!\n\n新特性：\n1.若有立体声版本优先下载\n2.死链提示\n3.修复曲名不对应\n\t\t\t\t\t\tEnjoy it！@Sinowrt")
         self.setupUiItems(MainWindow)
 
 
@@ -149,10 +150,12 @@ class Ui_MainWindow(QObject):
 
     def multipleThread(self):
         self.downloadFlag=False
+
         self.pool.dismissWorkers(len(self.func_var),do_join=True)
 
         button = QMessageBox.question(self.centralwidget, "提示", "由于程序尚未完善，点击“下载所选”将立即下载所有选择的曲目，无法停止（除了关闭窗口），确定下载吗？",
                                       QMessageBox.Ok | QMessageBox.Cancel, QMessageBox.Cancel)
+        self.bindDict.clear()
 
         if button == QMessageBox.Ok:
             self.downloadFlag=True
@@ -185,6 +188,7 @@ class Ui_MainWindow(QObject):
         self.spider=Spider()
         self.downloadThreadNum=10
         self.downloadFlag=True
+        self.bindDict={}
 
     def selectAll(self):
         self.setSelect(Qt.Checked)
@@ -208,22 +212,25 @@ class Ui_MainWindow(QObject):
                     xchild = child.child(n)
                     xchild.setCheckState(0, flag)
 
-    def download(self,url,currentPath,row):
+    def download(self,url,currentPath,index):
+        # print("IamRow============== "+str(index)+"IamName=====" + self.downLoadList[index]['songName'])
+
+        self.insert_signal.emit(self.downLoadList[index]['songName'],index)
         time.sleep(1)
-        self.insert_signal.emit(self.downLoadList[row]['songName'])
+        row=self.findRowByIndex(index)
 
         if not re.match('^(https?|ftp)://.+$',url):
             self.updatespeed_signal.emit('无效的网址或目标路径',row)
         else:
             try:
-                gf=getfile.Getfile(url)
+                gf=getfile.Getfile(url,currentPath)
             except Exception as e:
                 self.updatespeed_signal.emit('无法访问该网址',row)
                 gf.flag=False
                 return
             #name=gf.getfilename()
 
-            self.progressbar_thread(gf,row,currentPath)
+            self.progressbar_thread(gf,row)
 
             self.downLoadRest = self.downLoadRest - 1
             self.updatatotalProgress_signal.emit((self.downloadTotal-self.downLoadRest )/ self.downloadTotal * 100)
@@ -245,7 +252,7 @@ class Ui_MainWindow(QObject):
 
             self.updaterest_signal.emit(str(self.downLoadRest))
             for temp in self.downLoadList:
-                print("==========generate start!")
+
                 if index % 100 == 0:
                     self.updateStatue_signal.emit("正在生成线程池参数"+str(index))
                     self.updatatotalProgress_signal.emit(index/self.downloadTotal*100)
@@ -259,11 +266,15 @@ class Ui_MainWindow(QObject):
 
                 self.func_var.append((list,None))
                 index=index+1
-                print("==========generate complete!"+str(index))
+
         return
 
-    def progressbar_thread(self,gf, index,currentPath):
-        t2 = threading.Thread(target=gf.downfile, args=(currentPath,))
+    def progressbar_thread(self,gf, row):
+        if gf.headReaponseCode == 404:
+            self.updatespeed_signal.emit("请求失败：404死链",row)
+            return
+
+        t2 = threading.Thread(target=gf.downfile, args=())
         t2.setDaemon(True)
         t2.start()
         time.sleep(1)
@@ -275,7 +286,7 @@ class Ui_MainWindow(QObject):
         flag = True
 
         if file_total == -1:
-            self.updatespeed_signal.emit('获取文件大小失败', index)
+            self.updatespeed_signal.emit('获取文件大小失败', row)
             return
 
         while file_size < file_total and gf.flag:
@@ -299,25 +310,25 @@ class Ui_MainWindow(QObject):
                 flag=True
 
             if time.time()-speed0Time>(60) and (not flag):
-                print("================================I am redownloading!"+str(index))
+                print("================================I am redownloading!"+str(row))
                 gf.flag=False
                 time.sleep(1)
                 gf.flag=True
-                t2 = threading.Thread(target=gf.downfile, args=(currentPath,))
+                t2 = threading.Thread(target=gf.downfile, args=())
                 t2.setDaemon(True)
                 t2.start()
             else:
-                self.updatespeed_signal.emit(speed, index)
+                self.updatespeed_signal.emit(speed, row)
 
-            self.updateprogress_signal.emit(file_size / file_total * 100,index)
-            self.updateSize_signal.emit(index,'{:.1f}M/{:.1f}M'.format(file_size / 1024 / 1024, file_total / 1024 / 1024))
+            self.updateprogress_signal.emit(file_size / file_total * 100,row)
+            self.updateSize_signal.emit(row,'{:.1f}M/{:.1f}M'.format(file_size / 1024 / 1024, file_total / 1024 / 1024))
 
             if self.downloadFlag==False:
                 gf.flag=False
 
         #print("totalsize======"+str(file_total)+"||||||||downloaded=============="+str(file_size))
         if file_size >= file_total:
-            self.updatespeed_signal.emit('下载完毕', index)
+            self.updatespeed_signal.emit('下载完毕', row)
 
     def updata_totalProgress(self,percent):
         self.progressBar_2.setValue(percent)
@@ -400,7 +411,7 @@ class Ui_MainWindow(QObject):
                         checked = dict()
                         songName = xchild.text(0)
                         songUrl = xchild.text(1)
-                        print(xchild.text(1))
+
                         checked['artistName'] = artist
                         checked['series'] = series
                         checked['songName'] = songName
@@ -517,9 +528,10 @@ class Ui_MainWindow(QObject):
         self.tableRow=0
 
 
-    def insert_table(self,title):
+    def insert_table(self,title,index):
         progress = QProgressBar()
         row = self.display_table.rowCount()
+
         self.display_table.insertRow(row)
         self.display_table.setRowHeight(row,25)
 
@@ -528,6 +540,19 @@ class Ui_MainWindow(QObject):
         self.display_table.setItem(row, 2, QTableWidgetItem("KB/S"))
         self.display_table.setItem(row, 3, QTableWidgetItem("--M/--M"))
         self.display_table.setCellWidget(row, 4, progress)
+
+        self.bindRow_Index(row,index)
+
+    def bindRow_Index(self,row,index):
+        key= str(index)
+        self.bindDict[key]=row
+
+    def findRowByIndex(self,index):
+        return self.bindDict[str(index)]
+
+
+
+
 
 
 
